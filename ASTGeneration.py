@@ -4,10 +4,10 @@ from AST import *
 
 class ASTGeneration(MPVisitor):
     def visitProgram(self,ctx:MPParser.ProgramContext):
-        from itertools import chain
-        A=[self.visit(x) for x in ctx.body()]
-        B=list(chain.from_iterable(A))
-        return Program(B)
+        A=[]
+        for x in ctx.body():
+            A+=self.visit(x)
+        return Program(A)
     def visitFuncdecl(self,ctx:MPParser.FuncdeclContext):
         local,cpstmt = self.visit(ctx.vardecl()) if ctx.vardecl() else [],self.visit(ctx.compoundstatement())
         return FuncDecl(Id(ctx.ID().getText()),
@@ -33,9 +33,10 @@ class ASTGeneration(MPVisitor):
     def visitVardecl(self, ctx:MPParser.VardeclContext):
         return self.visit(ctx.listofvardec())
     def visitCompoundstatement(self, ctx:MPParser.CompoundstatementContext):
-        from itertools import chain
+        #from itertools import chain
         A=[self.visit(x) for x in ctx.statement()] if ctx.statement() else []
-        return list(chain.from_iterable(A))
+        #return list(chain.from_iterable(A))
+        return [ x for i in A for x in i]
     def visitStatement(self, ctx:MPParser.StatementContext):
         if ctx.assignmentstatement():
             return self.visit(ctx.assignmentstatement())
@@ -117,49 +118,24 @@ class ASTGeneration(MPVisitor):
             return BinaryOp("orelse",self.visit(ctx.expr()),self.visit(ctx.expr1()))
     def visitExpr1(self, ctx:MPParser.Expr1Context):
         if ctx.getChildCount() == 1:
-            return self.visit(ctx.expr2()[0])
-        left,right=[self.visit(i) for i in ctx.expr2()]
-        if ctx.EQ():
-            return BinaryOp(ctx.EQ().getText(),left,right)
-        elif ctx.NE():
-            return BinaryOp(ctx.NE().getText(),left,right)
-        elif ctx.LT():
-            return BinaryOp(ctx.LT().getText(),left,right)
-        elif ctx.LTE():
-            return BinaryOp(ctx.LTE().getText(),left,right)
-        elif ctx.GT():
-            return BinaryOp(ctx.GT().getText(),left,right)
+            return self.visit(ctx.expr2(0))
         else:
-            return BinaryOp(ctx.GTE().getText(),left,right)
+            return BinaryOp(ctx.getChild(1).getText(),self.visit(ctx.expr2(0)),self.visit(ctx.expr2(1)))
     def visitExpr2(self, ctx:MPParser.Expr2Context):
         if ctx.getChildCount() == 1:
             return self.visit(ctx.expr3())
-        if ctx.SUB():
-            return BinaryOp(ctx.SUB().getText(),self.visit(ctx.expr2()),self.visit(ctx.expr3()))
-        if ctx.ADD():
-            return BinaryOp(ctx.ADD().getText(),self.visit(ctx.expr2()),self.visit(ctx.expr3()))
         else:
-            return BinaryOp(ctx.OR().getText(),self.visit(ctx.expr2()),self.visit(ctx.expr3()))
+            return BinaryOp(ctx.getChild(1).getText(),self.visit(ctx.expr2()),self.visit(ctx.expr3()))
     def visitExpr3(self, ctx:MPParser.Expr3Context):
         if ctx.getChildCount() == 1:
             return self.visit(ctx.expr4())
-        if ctx.MUL(): 
-            return BinaryOp(ctx.MUL().getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
-        elif ctx.INTEGERDIV(): 
-            return BinaryOp(ctx.INTEGERDIV().getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
-        elif ctx.MOD(): 
-            return BinaryOp(ctx.MOD().getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
-        elif ctx.AND(): 
-            return BinaryOp(ctx.AND().getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
         else:
-            return BinaryOp(ctx.DIV().getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
+            return BinaryOp(ctx.getChild(1).getText(),self.visit(ctx.expr3()),self.visit(ctx.expr4()))
     def visitExpr4(self, ctx:MPParser.Expr4Context):
         if ctx.getChildCount() == 1:
             return self.visit(ctx.expr5())
-        if ctx.NOT():
-            return UnaryOp(ctx.NOT().getText(),self.visit(ctx.expr4()))
         else:
-            return UnaryOp(ctx.SUB().getText(),self.visit(ctx.expr4()))
+            return UnaryOp(ctx.getChild(0).getText(),self.visit(ctx.expr4()))
     def visitExpr5(self, ctx:MPParser.Expr5Context):
         if ctx.expr():
             return self.visit(ctx.expr())
@@ -206,9 +182,9 @@ class ASTGeneration(MPVisitor):
         else:
             return Id(ctx.ID().getText())     
     def visitListofvardec(self, ctx:MPParser.ListofvardecContext):
-        return[VarDecl(x,self.visit(ctx.mtype()[i])) 
+        return[VarDecl(x,self.visit(ctx.mtype(i))) 
             for i in range(int(ctx.getChildCount()/4)) 
-            for x in self.visit(ctx.listid()[i])]
+            for x in self.visit(ctx.listid(i))]
     def visitListid(self, ctx:MPParser.ListidContext):
         return [Id(i.getText()) for i in ctx.ID()]
     def visitPardec(self, ctx:MPParser.PardecContext):
@@ -247,6 +223,6 @@ class ASTGeneration(MPVisitor):
         return [self.visit(i) for i in ctx.limitingint()]
     def visitLimitingint(self,ctx:MPParser.LimitingintContext):
         if ctx.SUB():
-            return int(ctx.SUB().getText()+ctx.INTLIT().getText())
+            return int(ctx.INTLIT().getText())*-1
         else:
             return int(ctx.INTLIT().getText())
